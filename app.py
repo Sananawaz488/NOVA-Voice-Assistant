@@ -1,89 +1,231 @@
 import streamlit as st
 import streamlit.components.v1 as components
+from groq import Groq
+import os
+import re
 import urllib.parse
 
-from ai import ask_ai
 
-
-# ==========================================
+# =========================================================
 # PAGE SETTINGS
-# ==========================================
+# =========================================================
 
 st.set_page_config(
-    page_title="NOVA AI",
-    page_icon="🎤",
+    page_title="NOVA Voice Assistant",
+    page_icon="🎙️",
     layout="centered"
 )
 
 
-# ==========================================
-# LOAD CSS
-# ==========================================
+# =========================================================
+# GROQ API KEY
+# =========================================================
 
-with open("static/style.css", "r", encoding="utf-8") as f:
-    css = f.read()
+try:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+except Exception:
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+
+if not GROQ_API_KEY:
+    st.error("GROQ_API_KEY is missing. Add it in Streamlit Secrets.")
+    st.stop()
+
+
+client = Groq(api_key=GROQ_API_KEY)
+
+
+# =========================================================
+# SESSION STATE
+# =========================================================
+
+if "transcript" not in st.session_state:
+    st.session_state.transcript = ""
+
+if "response" not in st.session_state:
+    st.session_state.response = ""
+
+if "last_audio_id" not in st.session_state:
+    st.session_state.last_audio_id = None
+
+if "action_url" not in st.session_state:
+    st.session_state.action_url = None
+
+if "action_name" not in st.session_state:
+    st.session_state.action_name = None
+
+
+# =========================================================
+# CSS
+# =========================================================
 
 st.markdown(
-    "<style>" + css + "</style>",
+    """
+    <style>
+
+    .stApp {
+        background:
+        radial-gradient(circle at top, #182033 0%, #090b12 45%, #05060a 100%);
+    }
+
+    .main-title {
+        text-align: center;
+        font-size: 52px;
+        font-weight: 800;
+        letter-spacing: 5px;
+        margin-top: 20px;
+        margin-bottom: 0;
+        color: white;
+    }
+
+    .subtitle {
+        text-align: center;
+        color: #9ca3af;
+        font-size: 15px;
+        margin-bottom: 30px;
+    }
+
+    .nova-card {
+        background: rgba(20, 24, 35, 0.85);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 24px;
+        padding: 25px;
+        margin-top: 15px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+    }
+
+    .label {
+        color: #9ca3af;
+        font-size: 13px;
+        margin-bottom: 7px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .message {
+        color: white;
+        font-size: 17px;
+        line-height: 1.6;
+    }
+
+    .status {
+        text-align: center;
+        color: #22c55e;
+        font-size: 14px;
+        margin-bottom: 20px;
+    }
+
+    .mic-title {
+        text-align: center;
+        color: white;
+        font-size: 20px;
+        font-weight: 600;
+        margin-top: 25px;
+        margin-bottom: 10px;
+    }
+
+    .footer {
+        text-align: center;
+        color: #6b7280;
+        font-size: 12px;
+        margin-top: 35px;
+    }
+
+    </style>
+    """,
     unsafe_allow_html=True
 )
 
 
-# ==========================================
-# SESSION STATE
-# ==========================================
+# =========================================================
+# HEADER
+# =========================================================
 
-if "user_message" not in st.session_state:
-    st.session_state.user_message = "Say something..."
+st.markdown(
+    '<div class="main-title">NOVA</div>',
+    unsafe_allow_html=True
+)
 
-if "nova_message" not in st.session_state:
-    st.session_state.nova_message = (
-        "Hello! I'm NOVA. How can I help you?"
-    )
+st.markdown(
+    '<div class="subtitle">Your AI Voice Assistant</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="status">● ONLINE</div>',
+    unsafe_allow_html=True
+)
 
 
-# ==========================================
+# =========================================================
 # COMMAND HANDLER
-# ==========================================
+# =========================================================
 
-def get_response(message):
+def handle_command(text):
 
-    text = message.lower().strip()
+    text_lower = text.lower().strip()
 
-    # -----------------------------
-    # GOOGLE SEARCH
-    # -----------------------------
+    st.session_state.action_url = None
+    st.session_state.action_name = None
 
-    if "google" in text and any(
-        word in text
-        for word in [
-            "search",
-            "dhoondo",
-            "dhoondho",
-            "find"
-        ]
+    # -----------------------------------------------------
+    # GOOGLE
+    # -----------------------------------------------------
+
+    if (
+        "google kholo" in text_lower
+        or "google open" in text_lower
+        or text_lower == "google"
     ):
 
-        query = text
+        return (
+            "Sure, opening Google.",
+            "https://www.google.com",
+            "Open Google"
+        )
 
-        remove_words = [
-            "google",
-            "search",
-            "dhoondo",
-            "dhoondho",
-            "find",
-            "par",
-            "pe",
-            "mein",
-            "me",
-            "karo",
-            "kar do"
-        ]
 
-        for word in remove_words:
-            query = query.replace(word, " ")
+    # -----------------------------------------------------
+    # YOUTUBE
+    # -----------------------------------------------------
 
-        query = " ".join(query.split())
+    if (
+        "youtube kholo" in text_lower
+        or "youtube open" in text_lower
+        or text_lower == "youtube"
+    ):
+
+        return (
+            "Sure, opening YouTube.",
+            "https://www.youtube.com",
+            "Open YouTube"
+        )
+
+
+    # -----------------------------------------------------
+    # GOOGLE SEARCH
+    # -----------------------------------------------------
+
+    google_words = [
+        "google par",
+        "google pe",
+        "google mein",
+        "google me",
+        "google search"
+    ]
+
+    if any(word in text_lower for word in google_words):
+
+        query = text_lower
+
+        for word in google_words:
+            query = query.replace(word, "")
+
+        query = re.sub(
+            r"\b(search|karo|karein|kar do|please|dhoondo|dhoondho|find)\b",
+            "",
+            query
+        ).strip()
 
         if query:
 
@@ -93,50 +235,36 @@ def get_response(message):
             )
 
             return (
-                f"Google par {query} search kar raha hoon.",
-                url
+                f"Searching Google for {query}.",
+                url,
+                f"Search Google: {query}"
             )
 
 
-    # -----------------------------
+    # -----------------------------------------------------
     # YOUTUBE SEARCH
-    # -----------------------------
+    # -----------------------------------------------------
 
-    if "youtube" in text and any(
-        word in text
-        for word in [
-            "search",
-            "dhoondo",
-            "dhoondho",
-            "find",
-            "play",
-            "chalao"
-        ]
-    ):
+    youtube_words = [
+        "youtube par",
+        "youtube pe",
+        "youtube mein",
+        "youtube me",
+        "youtube search"
+    ]
 
-        query = text
+    if any(word in text_lower for word in youtube_words):
 
-        remove_words = [
-            "youtube",
-            "search",
-            "dhoondo",
-            "dhoondho",
-            "find",
-            "play",
-            "chalao",
-            "chala do",
-            "par",
-            "pe",
-            "mein",
-            "me",
-            "karo",
-            "kar do"
-        ]
+        query = text_lower
 
-        for word in remove_words:
-            query = query.replace(word, " ")
+        for word in youtube_words:
+            query = query.replace(word, "")
 
-        query = " ".join(query.split())
+        query = re.sub(
+            r"\b(search|karo|karein|kar do|please|dhoondo|dhoondho|find|play|chalao|chala do)\b",
+            "",
+            query
+        ).strip()
 
         if query:
 
@@ -146,199 +274,426 @@ def get_response(message):
             )
 
             return (
-                f"YouTube par {query} search kar raha hoon.",
-                url
+                f"Searching YouTube for {query}.",
+                url,
+                f"Search YouTube: {query}"
             )
 
 
-    # -----------------------------
-    # OPEN GOOGLE
-    # -----------------------------
+    # -----------------------------------------------------
+    # WHATSAPP
+    # -----------------------------------------------------
 
     if (
-        "google kholo" in text
-        or "google khol do" in text
-        or "open google" in text
+        "whatsapp kholo" in text_lower
+        or "whatsapp open" in text_lower
+        or text_lower == "whatsapp"
     ):
 
         return (
-            "Google khol raha hoon.",
-            "https://www.google.com"
+            "Opening WhatsApp.",
+            "https://web.whatsapp.com",
+            "Open WhatsApp"
         )
 
 
-    # -----------------------------
-    # OPEN YOUTUBE
-    # -----------------------------
+    # -----------------------------------------------------
+    # GMAIL
+    # -----------------------------------------------------
 
     if (
-        "youtube kholo" in text
-        or "youtube khol do" in text
-        or "open youtube" in text
+        "gmail kholo" in text_lower
+        or "gmail open" in text_lower
+        or text_lower == "gmail"
     ):
 
         return (
-            "YouTube khol raha hoon.",
-            "https://www.youtube.com"
+            "Opening Gmail.",
+            "https://mail.google.com",
+            "Open Gmail"
         )
 
 
-    # -----------------------------
-    # NORMAL AI
-    # -----------------------------
+    # -----------------------------------------------------
+    # INSTAGRAM
+    # -----------------------------------------------------
 
-    return ask_ai(message), None
+    if (
+        "instagram kholo" in text_lower
+        or "instagram open" in text_lower
+        or text_lower == "instagram"
+    ):
 
-
-# ==========================================
-# NOVA MAIN UI
-# ==========================================
-
-user_message = st.session_state.user_message
-nova_message = st.session_state.nova_message
-
-
-html = f"""
-<div class="nova-wrapper">
-<div class="nova-card">
-
-<div class="brand">
-
-<div class="logo">
-<div class="logo-ring"></div>
-<div class="logo-core">N</div>
-</div>
-
-<h1>NOVA</h1>
-
-<p>Your personal AI voice assistant</p>
-
-</div>
+        return (
+            "Opening Instagram.",
+            "https://www.instagram.com",
+            "Open Instagram"
+        )
 
 
-<div class="status">
+    # -----------------------------------------------------
+    # FACEBOOK
+    # -----------------------------------------------------
 
-<span class="status-dot"></span>
+    if (
+        "facebook kholo" in text_lower
+        or "facebook open" in text_lower
+        or text_lower == "facebook"
+    ):
 
-<span>Ready to listen</span>
-
-</div>
-
-
-<div class="conversation">
-
-<div class="message">
-
-<span class="label">YOU</span>
-
-<p>{user_message}</p>
-
-</div>
+        return (
+            "Opening Facebook.",
+            "https://www.facebook.com",
+            "Open Facebook"
+        )
 
 
-<div class="message">
+    # -----------------------------------------------------
+    # GITHUB
+    # -----------------------------------------------------
 
-<span class="label">NOVA</span>
+    if (
+        "github kholo" in text_lower
+        or "github open" in text_lower
+        or text_lower == "github"
+    ):
 
-<p>{nova_message}</p>
+        return (
+            "Opening GitHub.",
+            "https://github.com",
+            "Open GitHub"
+        )
 
-</div>
 
-</div>
+    # -----------------------------------------------------
+    # MAPS
+    # -----------------------------------------------------
 
-</div>
-</div>
+    if (
+        "maps kholo" in text_lower
+        or "google maps kholo" in text_lower
+        or "maps open" in text_lower
+    ):
+
+        return (
+            "Opening Google Maps.",
+            "https://maps.google.com",
+            "Open Google Maps"
+        )
+
+
+    # -----------------------------------------------------
+    # CALCULATOR
+    # -----------------------------------------------------
+
+    if (
+        "calculator kholo" in text_lower
+        or "calculator open" in text_lower
+    ):
+
+        return (
+            "Opening calculator.",
+            "https://www.google.com/search?q=calculator",
+            "Open Calculator"
+        )
+
+
+    # -----------------------------------------------------
+    # NORMAL GROQ AI
+    # -----------------------------------------------------
+
+    try:
+
+        response = client.chat.completions.create(
+
+            model="openai/gpt-oss-120b",
+
+            messages=[
+
+                {
+                    "role": "system",
+                    "content": """
+You are NOVA, a friendly personal voice assistant.
+
+The user can speak English, Urdu or Roman Urdu.
+
+If the user speaks English, reply in English.
+
+If the user speaks Roman Urdu, reply naturally
+in Roman Urdu.
+
+Keep answers short because they are spoken aloud.
+
+Be friendly and natural.
+
+Do not say "As an AI" unless the user asks.
+
+You are a voice assistant, so avoid long answers.
 """
+                },
+
+                {
+                    "role": "user",
+                    "content": text
+                }
+
+            ],
+
+            temperature=0.4,
+
+            max_tokens=200
+        )
+
+        answer = response.choices[0].message.content.strip()
+
+        return answer, None, None
+
+    except Exception as e:
+
+        return (
+            "Sorry, I could not connect to Groq right now.",
+            None,
+            None
+        )
 
 
-st.markdown(
-    html,
-    unsafe_allow_html=True
-)
+# =========================================================
+# SPEAK RESPONSE
+# =========================================================
 
+def speak_response(text):
 
-# ==========================================
-# MICROPHONE
-# ==========================================
+    safe_text = (
+        text
+        .replace("\\", "\\\\")
+        .replace("`", "\\`")
+        .replace("$", "\\$")
+    )
 
-with open("static/script.js", "r", encoding="utf-8") as f:
-    javascript = f.read()
-
-
-components.html(
-    f"""
-    <div class="voice-area">
-
-    <button id="micButton" class="mic-button">
-    🎤
-    </button>
-
-    <p id="statusText">
-    Tap the microphone and start speaking
-    </p>
-
-    <p id="heardText"></p>
-
-    </div>
-
+    html = f"""
     <script>
-    {javascript}
+
+    const text = `{safe_text}`;
+
+    function speak() {{
+
+        if (!window.speechSynthesis) {{
+            return;
+        }}
+
+        window.speechSynthesis.cancel();
+
+        const speech = new SpeechSynthesisUtterance(text);
+
+        speech.lang = "en-US";
+        speech.rate = 0.95;
+        speech.pitch = 1.05;
+        speech.volume = 1;
+
+        const voices = window.speechSynthesis.getVoices();
+
+        const preferred = voices.find(v =>
+            /female|zira|samantha|google uk english female|google us english/i
+            .test(v.name)
+        );
+
+        if (preferred) {{
+            speech.voice = preferred;
+        }}
+
+        window.speechSynthesis.speak(speech);
+    }}
+
+    setTimeout(speak, 400);
+
     </script>
-    """,
-    height=180
-)
+    """
+
+    components.html(
+        html,
+        height=1
+    )
 
 
-# ==========================================
-# TEXT INPUT
-# ==========================================
+# =========================================================
+# CONVERSATION DISPLAY
+# =========================================================
+
+if st.session_state.transcript:
+
+    st.markdown(
+        """
+        <div class="nova-card">
+            <div class="label">You said</div>
+            <div class="message">
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.write(st.session_state.transcript)
+
+    st.markdown(
+        """
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+if st.session_state.response:
+
+    st.markdown(
+        """
+        <div class="nova-card">
+            <div class="label">NOVA</div>
+            <div class="message">
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.write(st.session_state.response)
+
+    st.markdown(
+        """
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+# =========================================================
+# VOICE INPUT
+# =========================================================
 
 st.markdown(
-    "<div class='input-title'>Or type your message</div>",
+    '<div class="mic-title">🎤 Speak to NOVA</div>',
     unsafe_allow_html=True
 )
 
-
-message = st.text_input(
-    "Message",
-    placeholder="Type a message...",
-    label_visibility="collapsed"
+audio = st.audio_input(
+    "Tap the microphone and speak"
 )
 
 
-if st.button("Send ➤"):
+# =========================================================
+# PROCESS AUDIO
+# =========================================================
 
-    if message.strip():
+if audio is not None:
 
-        st.session_state.user_message = message
+    audio_id = str(audio.file_id) if hasattr(audio, "file_id") else str(audio)
 
-        reply, url = get_response(message)
+    if audio_id != st.session_state.last_audio_id:
 
-        st.session_state.nova_message = reply
+        st.session_state.last_audio_id = audio_id
 
-        if url:
+        try:
 
-            st.markdown(
-                f"""
-                <script>
-                window.open("{url}", "_blank");
-                </script>
-                """,
-                unsafe_allow_html=True
+            with st.spinner("NOVA is listening..."):
+
+                audio_bytes = audio.read()
+
+                transcription = client.audio.transcriptions.create(
+
+                    file=("voice.wav", audio_bytes),
+
+                    model="whisper-large-v3",
+
+                    response_format="text"
+                )
+
+                text = transcription.strip()
+
+
+            if text:
+
+                st.session_state.transcript = text
+
+                with st.spinner("NOVA is thinking..."):
+
+                    answer, url, action_name = handle_command(text)
+
+                st.session_state.response = answer
+
+                st.session_state.action_url = url
+
+                st.session_state.action_name = action_name
+
+                st.rerun()
+
+        except Exception as e:
+
+            st.error(
+                "Voice processing error. Please try again."
             )
+
+
+# =========================================================
+# ACTION BUTTON
+# =========================================================
+
+if st.session_state.action_url:
+
+    st.markdown("---")
+
+    st.link_button(
+        f"🔗 {st.session_state.action_name}",
+        st.session_state.action_url,
+        use_container_width=True
+    )
+
+
+# =========================================================
+# TEXT FALLBACK
+# =========================================================
+
+st.markdown("---")
+
+text_input = st.text_input(
+    "Or type a command",
+    placeholder="Example: YouTube par Python tutorials search karo"
+)
+
+if st.button(
+    "Send to NOVA",
+    use_container_width=True
+):
+
+    if text_input.strip():
+
+        st.session_state.transcript = text_input.strip()
+
+        with st.spinner("NOVA is thinking..."):
+
+            answer, url, action_name = handle_command(
+                text_input.strip()
+            )
+
+        st.session_state.response = answer
+        st.session_state.action_url = url
+        st.session_state.action_name = action_name
 
         st.rerun()
 
 
-# ==========================================
+# =========================================================
+# SPEAK LAST RESPONSE
+# =========================================================
+
+if st.session_state.response:
+
+    speak_response(
+        st.session_state.response
+    )
+
+
+# =========================================================
 # FOOTER
-# ==========================================
+# =========================================================
 
 st.markdown(
-    """
-    <div class="footer">
-    Powered by <strong>Groq AI</strong>
-    </div>
-    """,
+    '<div class="footer">Powered by Groq • NOVA Voice Assistant</div>',
     unsafe_allow_html=True
 )

@@ -1,8 +1,13 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import urllib.parse
 
 from ai import ask_ai
 
+
+# ==========================================
+# PAGE SETTINGS
+# ==========================================
 
 st.set_page_config(
     page_title="NOVA AI",
@@ -19,7 +24,7 @@ with open("static/style.css", "r", encoding="utf-8") as f:
     css = f.read()
 
 st.markdown(
-    f"<style>{css}</style>",
+    "<style>" + css + "</style>",
     unsafe_allow_html=True
 )
 
@@ -38,17 +43,19 @@ if "nova_message" not in st.session_state:
 
 
 # ==========================================
-# AI RESPONSE
+# COMMAND HANDLER
 # ==========================================
 
 def get_response(message):
 
-    message_lower = message.lower().strip()
+    text = message.lower().strip()
 
+    # -----------------------------
+    # GOOGLE SEARCH
+    # -----------------------------
 
-    # Google search
-    if "google" in message_lower and any(
-        word in message_lower
+    if "google" in text and any(
+        word in text
         for word in [
             "search",
             "dhoondo",
@@ -57,9 +64,9 @@ def get_response(message):
         ]
     ):
 
-        query = message_lower
+        query = text
 
-        for word in [
+        remove_words = [
             "google",
             "search",
             "dhoondo",
@@ -67,17 +74,18 @@ def get_response(message):
             "find",
             "par",
             "pe",
+            "mein",
+            "me",
             "karo",
             "kar do"
-        ]:
+        ]
+
+        for word in remove_words:
             query = query.replace(word, " ")
 
         query = " ".join(query.split())
 
-
         if query:
-
-            import urllib.parse
 
             url = (
                 "https://www.google.com/search?q="
@@ -90,9 +98,12 @@ def get_response(message):
             )
 
 
-    # YouTube search
-    if "youtube" in message_lower and any(
-        word in message_lower
+    # -----------------------------
+    # YOUTUBE SEARCH
+    # -----------------------------
+
+    if "youtube" in text and any(
+        word in text
         for word in [
             "search",
             "dhoondo",
@@ -103,9 +114,9 @@ def get_response(message):
         ]
     ):
 
-        query = message_lower
+        query = text
 
-        for word in [
+        remove_words = [
             "youtube",
             "search",
             "dhoondo",
@@ -116,17 +127,18 @@ def get_response(message):
             "chala do",
             "par",
             "pe",
+            "mein",
+            "me",
             "karo",
             "kar do"
-        ]:
+        ]
+
+        for word in remove_words:
             query = query.replace(word, " ")
 
         query = " ".join(query.split())
 
-
         if query:
-
-            import urllib.parse
 
             url = (
                 "https://www.youtube.com/results?search_query="
@@ -139,88 +151,114 @@ def get_response(message):
             )
 
 
-    # Normal AI conversation
+    # -----------------------------
+    # OPEN GOOGLE
+    # -----------------------------
+
+    if (
+        "google kholo" in text
+        or "google khol do" in text
+        or "open google" in text
+    ):
+
+        return (
+            "Google khol raha hoon.",
+            "https://www.google.com"
+        )
+
+
+    # -----------------------------
+    # OPEN YOUTUBE
+    # -----------------------------
+
+    if (
+        "youtube kholo" in text
+        or "youtube khol do" in text
+        or "open youtube" in text
+    ):
+
+        return (
+            "YouTube khol raha hoon.",
+            "https://www.youtube.com"
+        )
+
+
+    # -----------------------------
+    # NORMAL AI
+    # -----------------------------
+
     return ask_ai(message), None
 
 
 # ==========================================
-# NOVA UI
+# NOVA MAIN UI
 # ==========================================
 
+user_message = st.session_state.user_message
+nova_message = st.session_state.nova_message
+
+
+html = f"""
+<div class="nova-wrapper">
+<div class="nova-card">
+
+<div class="brand">
+
+<div class="logo">
+<div class="logo-ring"></div>
+<div class="logo-core">N</div>
+</div>
+
+<h1>NOVA</h1>
+
+<p>Your personal AI voice assistant</p>
+
+</div>
+
+
+<div class="status">
+
+<span class="status-dot"></span>
+
+<span>Ready to listen</span>
+
+</div>
+
+
+<div class="conversation">
+
+<div class="message">
+
+<span class="label">YOU</span>
+
+<p>{user_message}</p>
+
+</div>
+
+
+<div class="message">
+
+<span class="label">NOVA</span>
+
+<p>{nova_message}</p>
+
+</div>
+
+</div>
+
+</div>
+</div>
+"""
+
+
 st.markdown(
-    """
-    <div class="nova-wrapper">
-
-        <div class="nova-card">
-
-            <div class="brand">
-
-                <div class="logo">
-                    <div class="logo-ring"></div>
-                    <div class="logo-core">N</div>
-                </div>
-
-                <h1>NOVA</h1>
-
-                <p>Your personal AI voice assistant</p>
-
-            </div>
-
-
-            <div class="status">
-
-                <span class="status-dot"></span>
-
-                <span>
-                    Ready to listen
-                </span>
-
-            </div>
-
-
-            <div class="conversation">
-
-                <div class="message">
-
-                    <span class="label">
-                        YOU
-                    </span>
-
-                    <p>
-    """
-    + st.session_state.user_message
-    + """
-                    </p>
-
-                </div>
-
-
-                <div class="message">
-
-                    <span class="label">
-                        NOVA
-                    </span>
-
-                    <p>
-    """
-    + st.session_state.nova_message
-    + """
-                    </p>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-    """,
+    html,
     unsafe_allow_html=True
 )
 
 
 # ==========================================
-# VOICE + JAVASCRIPT
+# MICROPHONE
 # ==========================================
 
 with open("static/script.js", "r", encoding="utf-8") as f:
@@ -231,18 +269,15 @@ components.html(
     f"""
     <div class="voice-area">
 
-        <button
-            id="micButton"
-            class="mic-button"
-        >
-            🎤
-        </button>
+    <button id="micButton" class="mic-button">
+    🎤
+    </button>
 
-        <p id="statusText">
-            Tap the microphone and start speaking
-        </p>
+    <p id="statusText">
+    Tap the microphone and start speaking
+    </p>
 
-        <p id="heardText"></p>
+    <p id="heardText"></p>
 
     </div>
 
@@ -255,7 +290,7 @@ components.html(
 
 
 # ==========================================
-# TEXT INPUT FALLBACK
+# TEXT INPUT
 # ==========================================
 
 st.markdown(
@@ -265,7 +300,7 @@ st.markdown(
 
 
 message = st.text_input(
-    "",
+    "Message",
     placeholder="Type a message...",
     label_visibility="collapsed"
 )
@@ -295,10 +330,14 @@ if st.button("Send ➤"):
         st.rerun()
 
 
+# ==========================================
+# FOOTER
+# ==========================================
+
 st.markdown(
     """
     <div class="footer">
-        Powered by <strong>Groq AI</strong>
+    Powered by <strong>Groq AI</strong>
     </div>
     """,
     unsafe_allow_html=True
